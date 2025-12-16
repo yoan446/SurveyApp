@@ -3,25 +3,22 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
-use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Facades\URL; // N'oubliez pas d'importer la façade URL
 
 class AppServiceProvider extends ServiceProvider
 {
-    public function register(): void
+    /**
+     * Bootstrap any application services.
+     *
+     * @return void
+     */
+    public function boot()
     {
-        //
-    }
-
-    public function boot(): void
-    {
-        // Forcer HTTPS en production
-        if ($this->app->environment('production')) {
+        // Force le schéma HTTPS si l'application n'est pas en local
+        if (config('app.env') === 'production') {
             URL::forceScheme('https');
-            
-            // Forcer aussi pour les requêtes
-            if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
-                $_SERVER['HTTPS'] = 'on';
-            }
         }
     }
+
+    // ... reste de la classe ...
 }
