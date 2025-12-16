@@ -34,9 +34,9 @@ RUN chown -R www-data:www-data /var/www/html \
 COPY nginx/default.conf /etc/nginx/sites-available/default
 
 # Script de démarrage
-COPY docker-entrypoint.sh /usr/local/bin/
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 EXPOSE 80
 
-ENTRYPOINT ["docker-entrypoint.sh"]
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
