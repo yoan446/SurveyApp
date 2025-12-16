@@ -9,8 +9,7 @@ RUN apt-get update && apt-get install -y \
     libxml2-dev \
     zip \
     unzip \
-    nginx \
-    procps
+    nginx
 
 # Installation des extensions PHP
 RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
@@ -18,29 +17,26 @@ RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
 # Installation de Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Répertoire de travail
-WORKDIR /var/www/html
+# Définir le répertoire de travail
+WORKDIR /var/www
 
-# Copie des fichiers
+# Copier les fichiers du projet
 COPY . .
 
-# Installation des dépendances Laravel
+# Installer les dépendances PHP
 RUN composer install --optimize-autoloader --no-dev
 
 # Permissions
-RUN chown -R www-data:www-data /var/www/html \
-    && chmod -R 755 /var/www/html/storage
+RUN chown -R www-data:www-data /var/www \
+    && chmod -R 755 /var/www/storage
 
-# Créer le répertoire pour le socket PHP-FPM
-RUN mkdir -p /var/run/php && chown www-data:www-data /var/run/php
-
-# Copie de la configuration Nginx
-COPY nginx/default.conf /etc/nginx/sites-available/default
-
-# Script de démarrage
-COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+# Copier la configuration nginx
+COPY docker/nginx.conf /etc/nginx/sites-available/default
 
 EXPOSE 80
 
-ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+# Script de démarrage
+COPY docker/start.sh /usr/local/bin/start.sh
+RUN chmod +x /usr/local/bin/start.sh
+
+CMD ["/usr/local/bin/start.sh"]
