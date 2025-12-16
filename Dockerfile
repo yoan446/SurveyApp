@@ -9,7 +9,8 @@ RUN apt-get update && apt-get install -y \
     libxml2-dev \
     zip \
     unzip \
-    nginx
+    nginx \
+    procps
 
 # Installation des extensions PHP
 RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
@@ -29,6 +30,9 @@ RUN composer install --optimize-autoloader --no-dev
 # Permissions
 RUN chown -R www-data:www-data /var/www/html \
     && chmod -R 755 /var/www/html/storage
+
+# Créer le répertoire pour le socket PHP-FPM
+RUN mkdir -p /var/run/php && chown www-data:www-data /var/run/php
 
 # Copie de la configuration Nginx
 COPY nginx/default.conf /etc/nginx/sites-available/default
