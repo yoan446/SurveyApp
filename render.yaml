@@ -4,8 +4,14 @@ services:
     env: docker
     dockerfilePath: ./Dockerfile
     envVars:
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: false
       - key: APP_KEY
         generateValue: true
+      - key: DB_CONNECTION
+        value: pgsql
       - key: DB_HOST
         fromDatabase:
           name: laravel-db
@@ -31,3 +37,4 @@ databases:
   - name: laravel-db
     databaseName: laravel
     user: laravel
+    plan: starter
