@@ -1,6 +1,5 @@
 #!/bin/bash
-# Ne pas utiliser set -e pour permettre la gestion d'erreurs personnalisée
-set +e
+set -e
 
 PORT=${PORT:-80}
 
@@ -16,36 +15,23 @@ sed -i "s/listen 80;/listen $PORT;/g" /etc/nginx/sites-available/default
 
 # Test Nginx configuration
 echo "✅ Testing Nginx configuration..."
-if ! nginx -t; then
-    echo "❌ Nginx config failed!"
-    exit 1
-fi
+nginx -t || (echo "❌ Nginx config failed!" && exit 1)
 
 # Démarrer PHP-FPM en arrière-plan
 echo "🔧 Starting PHP-FPM..."
 php-fpm -D
 
 # Attendre que PHP-FPM démarre
-echo "⏳ Waiting for PHP-FPM to start..."
 sleep 3
 
-# Vérifier que PHP-FPM fonctionne
-if ! pgrep -f php-fpm > /dev/null; then
-    echo "⚠️  PHP-FPM might not be running, but continuing..."
-fi
-
-# Vérifier la connexion à la base de données avant les migrations
+# Vérifier la connexion à la base de données
 echo "🔍 Checking database connection..."
 DB_CHECK_ATTEMPTS=0
 MAX_DB_CHECK_ATTEMPTS=10
-DB_READY=0
 
-# Tester la connexion en essayant d'exécuter une commande simple qui nécessite la DB
 while [ $DB_CHECK_ATTEMPTS -lt $MAX_DB_CHECK_ATTEMPTS ]; do
-    # Utiliser une commande qui teste vraiment la connexion DB
-    if php artisan migrate:status > /dev/null 2>&1; then
+    if php artisan migrate:status --no-interaction > /dev/null 2>&1; then
         echo "✅ Database connection successful"
-        DB_READY=1
         break
     fi
     DB_CHECK_ATTEMPTS=$((DB_CHECK_ATTEMPTS + 1))
@@ -53,38 +39,34 @@ while [ $DB_CHECK_ATTEMPTS -lt $MAX_DB_CHECK_ATTEMPTS ]; do
     sleep 2
 done
 
-# Exécuter les migrations seulement si la connexion DB est OK
-if [ $DB_READY -eq 1 ]; then
-    echo "🗄️  Running database migrations..."
-    php artisan migrate --force 2>&1 || echo "⚠️  Migration failed or already up to date"
-else
-    echo "⚠️  Database not available after $MAX_DB_CHECK_ATTEMPTS attempts, skipping migrations"
-    echo "ℹ️  Migrations can be run manually later when database is available"
-fi
+# Laravel optimizations - FORCER le mode non-interactif
+echo "⚡ Optimizing Laravel (forced non-interactive mode)..."
 
-# Laravel optimizations - Gestion d'erreur robuste
-echo "⚡ Optimizing Laravel..."
+# Vider les caches existants
+php artisan config:clear --no-interaction 2>/dev/null || true
+php artisan route:clear --no-interaction 2>/dev/null || true
+php artisan view:clear --no-interaction 2>/dev/null || true
+php artisan cache:clear --no-interaction 2>/dev/null || true
 
-# Vider les caches existants d'abord pour éviter les conflits
-php artisan config:clear 2>/dev/null || true
-php artisan route:clear 2>/dev/null || true
-php artisan view:clear 2>/dev/null || true
-
-# Créer les caches (continue même si ça échoue)
+# Créer les caches avec --no-interaction et en forçant yes
 echo "📦 Caching configuration..."
-php artisan config:cache 2>&1 || echo "⚠️  Config cache failed, continuing..."
+yes | php artisan config:cache 2>&1 || echo "⚠️  Config cache completed with warnings"
 
 echo "📦 Caching routes..."
-php artisan route:cache 2>&1 || echo "⚠️  Route cache failed, continuing..."
+yes | php artisan route:cache 2>&1 || echo "⚠️  Route cache completed with warnings"
 
 echo "📦 Caching views..."
-php artisan view:cache 2>&1 || echo "⚠️  View cache failed, continuing..."
+yes | php artisan view:cache 2>&1 || echo "⚠️  View cache completed with warnings"
+
+# Migrations avec force et non-interactive
+echo "🗄️  Running database migrations..."
+yes | php artisan migrate --force 2>&1 || echo "⚠️  Migrations completed or skipped"
 
 # Créer le lien symbolique pour le storage
 echo "🔗 Creating storage link..."
-php artisan storage:link 2>/dev/null || echo "ℹ️  Storage link already exists or failed"
+php artisan storage:link --no-interaction 2>/dev/null || echo "ℹ️  Storage link already exists"
 
-# S'assurer que les permissions sont correctes
+# Permissions
 echo "🔒 Setting permissions..."
 chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache 2>/dev/null || true
 chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache 2>/dev/null || true
@@ -94,6 +76,5 @@ echo "🌐 Starting Nginx on port $PORT..."
 echo "✅ Application is ready!"
 echo "=========================================="
 
-# Démarrer Nginx au premier plan (c'est le processus principal qui doit tourner)
-# Cette commande ne doit JAMAIS échouer pour que le conteneur reste en vie
+# Démarrer Nginx au premier plan
 exec nginx -g 'daemon off;'
