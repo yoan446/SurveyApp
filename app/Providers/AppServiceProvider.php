@@ -14,8 +14,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot()
     {
-        // Force le schéma HTTPS si l'application n'est pas en local
-        if (config('app.env') === 'production') {
+        if (app()->environment('production')) {
             URL::forceScheme('https');
         }
     }
