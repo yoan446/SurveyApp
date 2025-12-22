@@ -351,6 +351,7 @@ function collectFormData() {
     productCards.forEach((card, index) => {
         const product = {
             nom_produit: card.querySelector(`input[name="products[${index}][nom_produit]"]`).value,
+            variete_produit: card.querySelector(`input[name="products[${index}][variete_produit]"]`)?.value || '',
             superficie: card.querySelector(`input[name="products[${index}][superficie]"]`).value,
             technique_culturale: card.querySelector(`input[name="products[${index}][technique_culturale]"]`).value,
             mecanisation_production: card.querySelector(`select[name="products[${index}][mecanisation_production]"]`).value,

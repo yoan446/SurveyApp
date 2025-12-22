@@ -6,11 +6,12 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Enquête Producteurs Camerounais - SurveyApp</title>
     <link rel="stylesheet" href="{{ asset('css/survey.css') }}">
+    <link rel="icon" type="image/png" href="{{ asset('logo1.png') }}">
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <div class="logo">Aaprovidir</div>
+            <div class="logo"><img src="{{asset('images/logo2.png')}}" alt=""></div>
             <h1>Enquête Producteurs Agricoles</h1>
             <p class="subtitle">Votre contribution aide à améliorer l'agriculture camerounaise</p>
         </div>
@@ -258,6 +259,11 @@
                 <div class="form-group">
                     <label>Nom du produit *</label>
                     <input type="text" name="products[][nom_produit]" required placeholder="Ex: Maïs, Cacao, Plantain">
+                </div>
+
+                <div class="form-group">
+                    <label>Variété du produit</label>
+                    <input type="text" name="products[][variete_produit]" placeholder="Ex: Maïs jaune, Cacao Forastero">
                 </div>
 
                 <div class="form-group">

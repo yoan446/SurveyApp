@@ -72,6 +72,7 @@ class SurveyController extends Controller
                 $productId = DB::table('survey_products')->insertGetId([
                     'survey_id' => $surveyId,
                     'nom_produit' => $productData['nom_produit'],
+                    'variete_produit' => $productData['variete_produit'] ?? null,
                     'superficie' => $productData['superficie'],
                     'technique_culturale' => $productData['technique_culturale'] ?? null,
                     'mecanisation_production' => $productData['mecanisation_production'] ?? null,
@@ -280,15 +281,17 @@ class SurveyController extends Controller
     }
 
     /**
-     * Exporter les données en CSV détaillé
+     * Exporter les données en CSV détaillé avec toutes les informations
      */
     public function export()
     {
-        $surveys = DB::table('producer_surveys')->get();
+        $surveys = DB::table('producer_surveys')
+            ->orderBy('created_at', 'desc')
+            ->get();
 
         $headers = [
             'Content-Type' => 'text/csv; charset=utf-8',
-            'Content-Disposition' => 'attachment; filename="enquetes_producteurs_detaillees.csv"',
+            'Content-Disposition' => 'attachment; filename="enquetes_producteurs_completes_' . date('Y-m-d') . '.csv"',
         ];
 
         $callback = function() use ($surveys) {
@@ -297,12 +300,85 @@ class SurveyController extends Controller
             // BOM UTF-8 pour Excel
             fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
             
-            // En-têtes CSV
+            // En-têtes CSV complets
             fputcsv($file, [
-                'ID Enquête', 'Nom', 'Type', 'Région', 'Département', 'Contact',
-                'Surface Totale', 'Produit', 'Superficie Produit', 'Herbicides', 
-                'Engrais', 'Pesticides', 'Date'
+                // Informations du producteur
+                'ID Enquête',
+                'Nom Producteur',
+                'Type',
+                'Région',
+                'Département',
+                'Contact',
+                'Latitude',
+                'Longitude',
+                'Surface Agricole Totale (ha)',
+                'Défis',
+                'Séchage',
+                'Tri/Nettoyage',
+                'Mécanisation Post-Récolte',
+                'Stockage',
+                'Accessibilité',
+                
+                // Informations du produit
+                'ID Produit',
+                'Nom Produit',
+                'Variété Produit',
+                'Superficie Produit (ha)',
+                
+                // Informations de production
+                'Technique Culturale',
+                'Mécanisation Production',
+                'Période Production 1',
+                'Période Production 2',
+                
+                // Informations de récolte
+                'Rendement/ha',
+                'Production Totale',
+                'Période Récolte 1',
+                'Période Récolte 2',
+                'Technique Récolte',
+                'Mécanisation Récolte',
+                
+                // Intrants - Semences
+                'Semences (Nom; Variété; Quantité)',
+                
+                // Intrants - Herbicides
+                'Herbicides (Nom; Quantité; Fréquence)',
+                
+                // Intrants - Engrais
+                'Engrais (Nom; Type; Quantité; Fréquence)',
+                
+                // Intrants - Pesticides
+                'Pesticides (Nom; Type; Quantité; Fréquence)',
+                
+                // Intrants - Autres
+                'Autres Intrants (Nom; Type; Quantité)',
+                
+                // Date
+                'Date Création'
             ]);
+
+            // Fonction helper pour formater les intrants
+            $formatIntrants = function($items, $format) {
+                if (empty($items)) {
+                    return '';
+                }
+                
+                $formatted = [];
+                foreach ($items as $item) {
+                    $parts = [];
+                    foreach ($format as $key => $field) {
+                        if (isset($item->$field) && !empty($item->$field)) {
+                            $parts[] = $item->$field;
+                        }
+                    }
+                    if (!empty($parts)) {
+                        $formatted[] = implode('; ', $parts);
+                    }
+                }
+                
+                return implode(' | ', $formatted);
+            };
 
             // Données
             foreach ($surveys as $survey) {
@@ -310,38 +386,110 @@ class SurveyController extends Controller
                     ->where('survey_id', $survey->id)
                     ->get();
 
-                foreach ($products as $product) {
-                    // Récupérer les intrants
-                    $herbicides = DB::table('product_herbicides')
-                        ->where('product_id', $product->id)
-                        ->pluck('nom_herbicide')
-                        ->implode(', ');
+                // Si pas de produits, exporter quand même les infos du producteur
+                if ($products->isEmpty()) {
+                    $emptyRow = array_fill(0, 15, ''); // 15 colonnes pour le producteur
+                    $emptyRow[0] = $survey->id;
+                    $emptyRow[1] = $survey->nom;
+                    $emptyRow[2] = $survey->type;
+                    $emptyRow[3] = $survey->region;
+                    $emptyRow[4] = $survey->departement;
+                    $emptyRow[5] = $survey->contact;
+                    $emptyRow[6] = $survey->latitude;
+                    $emptyRow[7] = $survey->longitude;
+                    $emptyRow[8] = $survey->surface_agricole;
+                    $emptyRow[9] = $survey->defis;
+                    $emptyRow[10] = $survey->sechage;
+                    $emptyRow[11] = $survey->tri_nettoyage;
+                    $emptyRow[12] = $survey->mecanisation_postrecolte;
+                    $emptyRow[13] = $survey->stockage;
+                    $emptyRow[14] = $survey->accessibilite;
                     
-                    $engrais = DB::table('product_engrais')
-                        ->where('product_id', $product->id)
-                        ->pluck('nom_engrais')
-                        ->implode(', ');
+                    // Ajouter les colonnes vides pour le produit et intrants (23 colonnes)
+                    $emptyRow = array_merge($emptyRow, array_fill(0, 23, ''));
+                    $emptyRow[] = $survey->created_at;
                     
-                    $pesticides = DB::table('product_pesticides')
-                        ->where('product_id', $product->id)
-                        ->pluck('nom_pesticide')
-                        ->implode(', ');
+                    fputcsv($file, $emptyRow);
+                } else {
+                    // Pour chaque produit, créer une ligne
+                    foreach ($products as $product) {
+                        // Récupérer tous les intrants
+                        $semences = DB::table('product_semences')
+                            ->where('product_id', $product->id)
+                            ->get();
+                        
+                        $herbicides = DB::table('product_herbicides')
+                            ->where('product_id', $product->id)
+                            ->get();
+                        
+                        $engrais = DB::table('product_engrais')
+                            ->where('product_id', $product->id)
+                            ->get();
+                        
+                        $pesticides = DB::table('product_pesticides')
+                            ->where('product_id', $product->id)
+                            ->get();
+                        
+                        $intrants = DB::table('product_intrants')
+                            ->where('product_id', $product->id)
+                            ->get();
 
-                    fputcsv($file, [
-                        $survey->id,
-                        $survey->nom,
-                        $survey->type,
-                        $survey->region,
-                        $survey->departement,
-                        $survey->contact,
-                        $survey->surface_agricole,
-                        $product->nom_produit,
-                        $product->superficie,
-                        $herbicides,
-                        $engrais,
-                        $pesticides,
-                        $survey->created_at,
-                    ]);
+                        // Formater les intrants
+                        $semencesFormatted = $formatIntrants($semences, ['nom_semence', 'variete', 'quantite']);
+                        $herbicidesFormatted = $formatIntrants($herbicides, ['nom_herbicide', 'quantite', 'frequence']);
+                        $engraisFormatted = $formatIntrants($engrais, ['nom_engrais', 'type', 'quantite', 'frequence']);
+                        $pesticidesFormatted = $formatIntrants($pesticides, ['nom_pesticide', 'type', 'quantite', 'frequence']);
+                        $intrantsFormatted = $formatIntrants($intrants, ['nom_intrant', 'type', 'quantite']);
+
+                        fputcsv($file, [
+                            // Informations du producteur
+                            $survey->id,
+                            $survey->nom,
+                            $survey->type,
+                            $survey->region,
+                            $survey->departement,
+                            $survey->contact,
+                            $survey->latitude,
+                            $survey->longitude,
+                            $survey->surface_agricole,
+                            $survey->defis,
+                            $survey->sechage,
+                            $survey->tri_nettoyage,
+                            $survey->mecanisation_postrecolte,
+                            $survey->stockage,
+                            $survey->accessibilite,
+                            
+                            // Informations du produit
+                            $product->id,
+                            $product->nom_produit,
+                            $product->variete_produit,
+                            $product->superficie,
+                            
+                            // Informations de production
+                            $product->technique_culturale,
+                            $product->mecanisation_production,
+                            $product->periode_production_1,
+                            $product->periode_production_2,
+                            
+                            // Informations de récolte
+                            $product->rendement_ha,
+                            $product->production_totale,
+                            $product->periode_recolte_1,
+                            $product->periode_recolte_2,
+                            $product->technique_recolte,
+                            $product->mecanisation_recolte,
+                            
+                            // Intrants
+                            $semencesFormatted,
+                            $herbicidesFormatted,
+                            $engraisFormatted,
+                            $pesticidesFormatted,
+                            $intrantsFormatted,
+                            
+                            // Date
+                            $survey->created_at,
+                        ]);
+                    }
                 }
             }
 

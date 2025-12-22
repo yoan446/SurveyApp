@@ -44,9 +44,11 @@ body {
 }
 
 .logo {
-    font-size: 60px;
-    margin-bottom: 15px;
     animation: bounce 2s infinite;
+}
+
+.logo img{
+    width: 450px;
 }
 
 @keyframes bounce {
